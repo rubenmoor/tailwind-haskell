@@ -33,7 +33,11 @@ import Web.Tailwind
       tailwindMode,
       tailwindOutput,
       runTailwind,
-      tailwindConfigPlugins, tailwindConfigTheme, tailwindInput, Css (..) )
+      tailwindConfigPlugins,
+      tailwindConfigTheme,
+      tailwindConfigCustomPlugins,
+      tailwindInput,
+      Css (..) )
 import qualified Data.Text as Text
 import Data.Traversable (for)
 import Optics.Setter (set)
@@ -44,7 +48,8 @@ data Cli = Cli
     output :: FilePath,
     mode :: Mode,
     plugins :: Text,
-    themeJson :: Maybe FilePath,
+    theme :: Maybe FilePath,
+    customPlugins :: Maybe FilePath,
     css :: Maybe FilePath
   }
   deriving (Eq, Show)
@@ -66,11 +71,17 @@ cliParser = do
     <> showDefaultWith id
     <> help "Specify enabled plugins"
     )
-  themeJson <- optional $ strOption
+  theme <- optional $ strOption
     (  long "theme"
     <> short 't'
     <> metavar "FILE"
-    <> help "Javascript for theme configuration"
+    <> help "Javascript for theme configuration, expecting JSON Object"
+    )
+  customPlugins <- optional $ strOption
+    (  long "custom-plugins"
+    <> short 'c'
+    <> metavar "FILE"
+    <> help "Javascript for extra plugin code, expecting JSON Array"
     )
   css       <- optional $ strOption
     (  long "css"
@@ -89,13 +100,15 @@ main = do
   withUtf8 $ do
     cli <- execParser opts
     print cli
-    mTheme <- traverse Text.readFile $ themeJson cli
+    mTheme <- traverse Text.readFile $ theme cli
+    mCustomPlugins <- traverse Text.readFile $ customPlugins cli
     mCss <- traverse Text.readFile $ css cli
     runStdoutLoggingT $
       runTailwind $
         def
           & tailwindConfig % tailwindConfigContent .~ toList (content cli)
           & tailwindConfig % tailwindConfigPlugins .~ readPlugins (plugins cli)
+          & maybe id (set $ tailwindConfig % tailwindConfigCustomPlugins) mCustomPlugins
           & maybe id (set $ tailwindConfig % tailwindConfigTheme) mTheme
           & maybe id (set tailwindInput . Css) mCss
           & tailwindOutput .~ output cli

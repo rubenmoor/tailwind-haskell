@@ -23,6 +23,7 @@ module Web.Tailwind
     tailwindConfigContent,
     tailwindConfigPlugins,
     tailwindConfigTheme,
+    tailwindConfigCustomPlugins,
     tailwindMode,
   )
 where
@@ -73,9 +74,10 @@ instance Text.Read.Read Plugin where
 -- with arbitrary JS code.
 data TailwindConfig = TailwindConfig
   { -- | List of source patterns that reference CSS classes
-    _tailwindConfigContent :: [FilePath],
-    _tailwindConfigPlugins :: [Plugin],
-    _tailwindConfigTheme   :: Text
+    _tailwindConfigContent       :: [FilePath],
+    _tailwindConfigPlugins       :: [Plugin],
+    _tailwindConfigTheme         :: Text,
+    _tailwindConfigCustomPlugins :: Text
   }
 
 newtype Css = Css {unCss :: Text}
@@ -104,6 +106,7 @@ instance Default TailwindConfig where
           , AspectRatio
           ]
       , _tailwindConfigTheme = ""
+      , _tailwindConfigCustomPlugins = ""
       }
 
 instance Default Tailwind where
@@ -129,6 +132,9 @@ instance Text.Show.Show TailwindConfig where
     let content = Text.pack $ show _tailwindConfigContent
         mkStrPlugin plugin = "require('@tailwindcss/" <> show plugin <> "')"
         strPlugins = Text.intercalate ",\n" $ mkStrPlugin <$> _tailwindConfigPlugins
+        strCustomPlugins = if Text.null _tailwindConfigCustomPlugins
+          then ""
+          else ".concat(" <> _tailwindConfigCustomPlugins <> ")"
         theme = if Text.null _tailwindConfigTheme
           then ""
           else "\ntheme: " <> Text.strip _tailwindConfigTheme <> ",\n"
@@ -136,12 +142,13 @@ instance Text.Show.Show TailwindConfig where
           [text|
           const defaultTheme = require('tailwindcss/defaultTheme')
           const colors = require('tailwindcss/colors')
+          const plugin = require('tailwindcss/plugin')
 
           module.exports = {
             content: ${content},${theme}
             plugins: [
               ${strPlugins}
-            ]
+            ]${strCustomPlugins}
           }
           |]
 
